@@ -1,0 +1,65 @@
+﻿@model IEnumerable<Public360.Models.State>
+
+@{
+    ViewBag.Title = "Home";
+}
+<script src="/Scripts/jquery-1.7.1.min.js" type="text/javascript"></script> 
+<script type="text/javascript">
+    $(function () {
+        $('#StateList').change(function () {
+            var selectedState = $("#StateList").val();
+            if (selectedState != null && selectedState != '') {
+                $.getJSON('@Url.Action("CitiesJSON")', { stateID: selectedState }, function (cities) {
+                    var citiesSelect = $('#CityList');
+                    citiesSelect.empty();
+                    citiesSelect.append($('<option/>', { value: '', text: 'Select City...' }))
+                    $.each(cities, function (index, city) {
+                        citiesSelect.append($('<option/>', {
+                            value: city.value,
+                            text: city.text
+                        }));
+                    });
+                });
+            }
+        });
+    });
+</script>
+
+<script type="text/javascript">
+    $(function () {
+        $('#Submit').click(function () {
+            var selectedCityVal = $("#CityList").val();
+            var path = '@Url.Content("~/City/Details")' + "?id=" + selectedCityVal;
+            $(this).attr("href", path);
+        });
+    });
+</script>
+
+<div class="content-wrapper">
+    <div class="float-left">
+        Begin your research here:<br />
+        <select id="StateList" >
+           <option value="">Select State...</option>
+            @foreach (var state in Model)
+            {
+                <option value=@state.StateID>@state.StateName</option>
+            }
+         </select> <br />
+        <select id="CityList" >
+           <option value="">Select City...</option>
+        </select> <br />
+        <nav>
+            <ul id="menu">
+                <li>@Html.ActionLink("Clear", "Clear","Home",null,null)</li>
+                <li>@Html.ActionLink("Submit", "Details","City", null, new {id = "Submit" })</li>
+            </ul>
+        </nav>
+    </div>
+    <div class="float-right" >
+        <h2>Why use 360 Public? </h2>
+        <p>Allows users to navigate through local, count, and state level data to help measure performance and effectiveness.</p>
+        <p>Traditional data provides little isight and relevance.</p>
+        <p>Provides users an easy-to-use platform to compare and contrast cities, and navigate through treaditionallly complicated data sources</p>
+        <p>Promotes transparency, and efficiency to government organizations.</p>
+    </div>
+</div>

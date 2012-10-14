@@ -1,0 +1,131 @@
+﻿@model Public360.ViewModels.CityDetail
+
+@{
+    ViewBag.Title = "Details";
+}
+
+<script src="/Scripts/jquery-1.7.1.min.js" type="text/javascript"></script> 
+<script type="text/javascript">
+    $(function () {
+        $('.UISubTypeButton').live('click',function () {
+            var uiSubTypeButton = $(this);
+            var id = uiSubTypeButton.attr("id");
+            var num = id.toString().substring(15);
+            var cityID = @Model.City.CityID;
+            if (num != null && num != '') {
+                if ($(this).html() == 'Expand')
+                {
+                    $.getJSON('@Url.Action("UICityDataJSON")', { uiCityDataTypeID: num, cityID: cityID }, function (uiCityDatas) {
+                        var expID = '#UISubTypeExpander' + num;
+                        var cityExpander = $(expID);
+                        cityExpander.html('');
+                        cityExpander.append()
+                        $.each(uiCityDatas, function (index, uiCityData) {
+                            cityExpander.append(uiCityData.text + '&nbsp;&nbsp;&nbsp;' + uiCityData.value + '<br />');
+                        });
+                    });
+                    $(this).html('Contract');
+                }
+                else
+                {
+                    var expID = '#UISubTypeExpander' + num;
+                    var cityExpander = $(expID);
+                    cityExpander.html('');
+                    $(this).html('Expand');
+                }
+            }
+        });
+    });
+</script>
+
+<script type="text/javascript">
+    $(function () {
+        $('#UICityDataTypeList').change(function () {
+            var selectedUICityDataType = $("#UICityDataTypeList").val();
+            if (selectedUICityDataType != null && selectedUICityDataType != '') {
+                $.getJSON('@Url.Action("UICityDataTypeJSON")', { uiCityDataTypeID: selectedUICityDataType }, function (uiCityDataTypes) {
+                    var cityData = $('#CityData');
+                    cityData.html('');
+                    cityData.append()
+                    $.each(uiCityDataTypes, function (index, uiCityDataType) {
+                        cityData.append('<div id="UISubType' + uiCityDataType.value + '">' + uiCityDataType.text + '&nbsp;&nbsp;&nbsp;&nbsp;ID: ' + uiCityDataType.value + '<button id="UISubTypeButton' + uiCityDataType.value + '" class="UISubTypeButton">Expand</button>' + '<br />' + '</div>' + '<div id="UISubTypeExpander' + uiCityDataType.value + '">' + '</div>');
+                    });
+                });
+            }
+        });
+    });
+</script>
+<script type="text/javascript">
+    $(function () {
+        $('#ComparisonCityList').change(function () {
+            var selectedCity = $("#ComparisonCityList").val();
+            if (selectedCity != null && selectedCity != '') {
+                $.getJSON('@Url.Action("SingleCityPopJSON")', { cityID: selectedCity }, function (cities) {
+                    var citiesSelect = $('#PossibleComparisonCitiesList');
+                    //citiesSelect.empty();
+                    citiesSelect.append()
+                    $.each(cities, function (index, city) {
+                        citiesSelect.append($('<option/>', {
+                            value: city.value,
+                            text: city.text
+                        }));
+                    });
+                });
+            }
+        });
+    });
+</script>
+
+<script type="text/javascript">
+    $(function () {
+        $('#Submit').click(function () {
+            var percent = $("#PopComparisonPercent").val();
+            var cityID = @Model.City.CityID;
+            var stateID = @Model.City.StateID;
+            var homePop = @Model.CityPopulation;
+
+            if (percent != null && percent != '') {
+                $.getJSON('@Url.Action("CitiesWithinPercentJSON")', { excludeCityID: cityID, stateID: stateID, homePop: homePop, percent: percent }, function (cities) {
+                    var citiesSelect = $('#PossibleComparisonCitiesList');
+                    citiesSelect.empty();
+                    citiesSelect.append()
+                    $.each(cities, function (index, city) {
+                        citiesSelect.append($('<option/>', {
+                            value: city.value,
+                            text: city.text
+                        }));
+                    });
+                });
+            }
+        });
+    });
+</script>
+
+<h2>City: @Model.City.CityUniqueName</h2><br />
+Select Type of Data
+<div class="content-wrapper">
+        <select id="UICityDataTypeList" size=@Model.UICityDataTypeSize>
+            @foreach (var uiCityDataType in Model.UICityDataTypes)
+            {
+                <option value=@uiCityDataType.CityDataTypeID>@uiCityDataType.DisplayText</option>
+            }
+         </select> <br />
+    <h3>Add Comparisons</h3><br />
+        <select id="ComparisonCityList">
+            <option value="">Select City...</option>
+
+            @foreach (var city in Model.ComparisonCities)
+            {
+                <option value=@city.CityID>@city.CityUniqueName</option>
+            }
+         </select> <br />
+         Population&nbsp;&nbsp;@Model.CityPopulation &nbsp; &nbsp: Within +/- (%) <input id="PopComparisonPercent" type="text" value="3" /> <br />
+
+        <button id="Submit">Submit</button>
+        <select id="PossibleComparisonCitiesList" size=10 multiple=true >
+        </select> <br />
+
+     <div id="CityData" >
+    </div>
+
+</div>

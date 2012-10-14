@@ -1,0 +1,11 @@
+﻿@model IEnumerable<Public360.Models.State>
+
+@{
+    ViewBag.Title = "State";
+states:</p>
+<ul>
+@foreach (var state in Model)
+{
+    <li>@state.StateName</li>
+}
+</ul>

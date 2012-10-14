@@ -1,0 +1,16 @@
+﻿@model IEnumerable<Public360.Models.City>
+
+
+@{
+    ViewBag.Title = "Cities";
+}
+
+<h3>Browse Cities</h3>
+<p>Select from @Model.Count()
+cities:</p>
+<ul>
+@foreach (var city in Model)
+{
+    <li>@city.CityUniqueName</li>
+}
+</ul>
