@@ -83,8 +83,20 @@ namespace Public360.Controllers
             List<UICityDataType> uiCityDataTypes = publicDB.UICityDataTypes.Where(u => u.ParentCityDataTypeID == uiCityDataTypeID && u.Active == true).OrderBy(u => u.SortOrder).ToList();
 
             return Json(uiCityDataTypes.Select(x => new { value = x.CityDataTypeID, text = x.DisplayText }), JsonRequestBehavior.AllowGet);
+
         }
 
+        // 
+        // get
+        // AJAX: /City/UICityDataTypeFullJSON?uiCityDataTypeID=1
+        public ActionResult UICityDataTypeFullJSON(int uiCityDataTypeID)
+        {
+            List<UICityDataType> uiCityDataTypes = publicDB.UICityDataTypes.Where(u => u.ParentCityDataTypeID == uiCityDataTypeID && u.Active == true).OrderBy(u => u.SortOrder).ToList();
+
+            return Json(uiCityDataTypes.Select(x => new { uniqueID = x.CityDataTypeID, sortOrder = x.SortOrder, active = x.Active, displayText = x.DisplayText, dataLevel = x.DataLevel, parentUniqueID = x.ParentCityDataTypeID, isLeaf = x.IsLeaf, source = x.Source }), JsonRequestBehavior.AllowGet);
+        
+        }
+        
         // 
         // get
         // AJAX: /City/UICityDataJSON?uiCityDataTypeID=1
