@@ -173,6 +173,8 @@
     <Compile Include="Models\City.cs" />
     <Compile Include="Models\CensusCityAge.cs" />
     <Compile Include="Models\CityData.cs" />
+    <Compile Include="Models\DataSetCurrentYear.cs" />
+    <Compile Include="Models\DataSetEnums.cs" />
     <Compile Include="Models\UICityDataType.cs" />
     <Compile Include="Models\PublicEntities.cs" />
     <Compile Include="Models\State.cs" />

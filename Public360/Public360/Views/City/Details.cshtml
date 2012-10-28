@@ -6,10 +6,11 @@
 <script src="/Scripts/jquery-1.7.1.min.js" type="text/javascript"></script> 
 <script type="text/javascript">
     //classes
-    function city(id, name, population) {
+    function city(id, name, population, stateID) {
         this.id = id;
         this.name = name;
         this.population = population;
+        this.stateID = stateID;
 
         this.selected = selected;
         function selected(sel) {
@@ -63,9 +64,11 @@
     //globals
     var cities = new Array();
     var expanders = new Array();
+    var cityLoop = 0;
+    var clickingExpander = false;
 
     //load base city information on page load
-    var cityBase = new city(@Model.City.CityID, "@Model.City.CityUniqueName", @Model.CityPopulation);
+    var cityBase = new city(@Model.City.CityID, "@Model.City.CityUniqueName", @Model.CityPopulation, @Model.City.StateID);
     cityBase.selected(1);
     cityBase.displayOrder(1);
     
@@ -74,10 +77,11 @@
 
 </script>
 <script type="text/javascript">
-    function updateCityHeader() {
-        var cityData = $('#CityData');
+    function uiUpdateCityHeader() {
 
-        //for each selected city make a column in order
+        var cityDataCol1 = $('#CityDataCol1');
+  
+          //for each selected city make a column in order
         var output8 = "";
         for (s = 1; s < 4; s++) {
             var cityTemp8 = null;
@@ -85,218 +89,257 @@
                 cityTemp8 = cities[i];
                 if (cityTemp8.selected == 1) {
                     if (cityTemp8.displayOrder == s) {
-                        output8 = output8 + cityTemp8.name + "&nbsp;&nbsp;&nbsp;";
+                        if (i == 0) {
+                            //base city
+                            output8 = output8 + cityTemp8.name + "&nbsp;&nbsp;&nbsp;";
+                        }
+                        else {
+                            output8 = output8 + cityTemp8.name + "&nbsp;" + '<button id="UICityDelButton' + cityTemp8.id + '" class="UICityDelButton">X</button>' + "&nbsp;&nbsp;&nbsp;";
+                        }
                         break;
                     }
                 }
             }
         }
-        var cityDataCol1 = $('#CityDataCol1');
         cityDataCol1.html(output8);
     }
+
 </script>
+
+</script>
+
 <script type="text/javascript">
-    function updateData(expanderID) {
-        if (expanderID != null && expanderID != '') {
+    function updateModelFromJSON(expanderID, cityID, currentCityLoop, updateModelFromJSONCallback) {
 
-            //diagnostic
-            alert("update model - have expander id: "+ expanderID);
 
-            // locate expander
-            var foundExp = false;
-            var expanderTemp5 = null;
-            for (i = 0; i < expanders.length; i++) {
-                expanderTemp5 = expanders[i];
-                if (expanderTemp5.uniqueID == expanderID) {
-                    foundExp = true;
-                    break;
-                }
+        //leaf notes
+        //expand leaf class - see if leafs exist, if do use them, if not exist load for cities selected, in 
+        //city index sort 1,2,3 index 5,2,15 (city indexes remain unchanged during page usage)
+        //if leaf exists, see if citydata exist, if so skip
+        //if leaf exists, citydata doesn't exist, load from db
+        //loop through leafs, compare by index to db leafs and match titles, if match, load citydata for leaf
+        //mark incoming leaf data matched
+        //if no match, leave city data empty
+        //loop through incoming leaf data search for no match, if found, add to end of child leafs, add data
+
+        var cityTemp5 = null;
+        cityTemp5 = cities[currentCityLoop];
+
+        // locate expander
+        var foundExp = false;
+        var expanderTemp5 = null;
+        for (i = 0; i < expanders.length; i++) {
+            expanderTemp5 = expanders[i];
+            if (expanderTemp5.uniqueID == expanderID) {
+                foundExp = true;
+                break;
             }
+        }
 
-            //diagnostic
-            //alert("foundexp: " + foundExp);
+        var cityDataLeafs = null;
 
-            var cityDataLeafs = null;
+        if (foundExp == true) {
+            if (expanderTemp5.cityDataLeafs == null) {
+                //no leafs loaded
 
-            if (foundExp == true) {
-                //diagnostic
-                //alert("found expander in collection");
-                if (expanderTemp5.cityDataLeafs == null) {
-                    //no leafs loaded
+                //create empty collection
+                cityDataLeafs = new Array();
 
-                    //diagnostic
-                    //alert("no leafs for expander");
+                //assign collection to expander
+                expanderTemp5.cityDataLeafs = cityDataLeafs;
+
+            }
+            else {
+                cityDataLeafs = expanderTemp5.cityDataLeafs;
+            }
+        }
+        else {
+            alert("Could not find expander");
+        }
+
+        //load leafs from selected city
+        $.getJSON('@Url.Action("UICityDataJSON")', { uiCityDataTypeID: expanderID, cityID: cityID, stateID: cityTemp5.stateID }, function (uiCityDatas) {
+            $.each(uiCityDatas, function (index, uiCityData) {
+
+                //does leaf already exist
+                var leafFound = false;
+                var leafTemp5 = null;
+                for (i = 0; i < cityDataLeafs.length; i++) {
+                    leafTemp5 = cityDataLeafs[i];
+                    if (leafTemp5.displayText == uiCityData.text) {
+                        leafFound = true;
+                        break;
+                    }
+                }
+
+                if (leafFound != true) {
+                    //leaf not found
+
+                    //add leaf
+                    //todo fill in more properties here
+                    leafTemp5 = new leaf(0, 0, 1, uiCityData.text, expanderID);
+                    leafTemp5.cityDatas = null;
+
+                    //add to leaf collection
+                    cityDataLeafs[cityDataLeafs.length] = leafTemp5;
+                }
+
+                //any city data for leaf exist
+                if (leafTemp5.cityDatas == null) {
+                    //no city datas loaded
 
                     //create empty collection
-                    cityDataLeafs = new Array();
+                    var cityDatasTemp5 = new Array();
 
-                    //assign collection to expander
-                    expanderTemp5.cityDataLeafs = cityDataLeafs;
-
+                    //assign to leaf
+                    leafTemp5.cityDatas = cityDatasTemp5;
                 }
                 else {
-                    cityDataLeafs = expanderTemp5.cityDataLeafs;
+                    cityDatasTemp5 = leafTemp5.cityDatas;
                 }
 
-                //loop through selected cities
-                var cityTemp5 = null;
-                for (i = 0; i < cities.length; i++) {
-                    cityTemp5 = cities[i];
-                    if (cityTemp5.selected == 1) {
-                        //diagnostic
-                        //alert("city id: " + cityTemp5.id);
+                //see if city data already exists for this city
+                var cityDataFound = false;
+                var cityDataTemp5 = null;
+                for (i = 0; i < cityDatasTemp5.length; i++) {
+                    cityDataTemp5 = cityDatasTemp5[i];
+                    if (cityDataTemp5.cityID == cityTemp5.id) {
+                        cityDataFound = true;
+                        break;
+                    }
+                }
+                if (cityDataFound != true) {
+                    //add city data to leaf 
+                    cityDataTemp5 = new cityData(0, cityTemp5.id, uiCityData.value, 0);
+                    cityDatasTemp5[cityDatasTemp5.length] = cityDataTemp5;
+                }
 
-                        //todo precheck - see if first leaf has the city data in it, if so skip loading of leafs for that city
-                        if (cityDataLeafs.length > 0) {
+                //if nothing in collection, null it out
+                if (leafTemp5.cityDatas.length == 0) {
+                    leafTemp5.cityDatas = null;
+                }
+            });
+            updateModelFromJSONCallback(expanderID);
+        });
+    }
 
-                            //diagnostic
-                            //alert("some leafs exist");
-
-                            //get first leaf only
-                            leafTemp5 = cityDataLeafs[0];
-
-                            //search for city data
-                            var foundLeafCityData = false;
-                            if (leafTemp5.cityDatas != null) {
-                                //have some data
-                                for (i2 = 0; i2 < leafTemp5.cityDatas.length; i2++) {
-                                    cityDataTemp5 = leafTemp5.cityDatas[i2];
-                                    if (cityDataTemp5.cityID == cityTemp5.id) {
-                                        foundLeafCityData = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        if (foundLeafCityData != true) {
-                            //diagnostic
-                            //alert("leaf data for city not found");
-
-                            //load leafs from selected city
-                            $.getJSON('@Url.Action("UICityDataJSON")', { uiCityDataTypeID: expanderID, cityID: cityTemp5.id }, function (uiCityDatas) {
-                                $.each(uiCityDatas, function (index, uiCityData) {
-
-                                    //diagnostic
-                                    //alert("city data read" + cityTemp5.id);
-
-                                    //does leaf already exist
-                                    var leafFound = false;
-                                    var leafTemp5 = null;
-                                    for (i = 0; i < cityDataLeafs.length; i++) {
-                                        leafTemp5 = cityDataLeafs[i];
-                                        if (leafTemp5.displayText == uiCityData.text) {
-                                            leafFound = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if (leafFound == true) {
-                                        //alert("confirm data in2: " + leafTemp5.cityDatas[0].cityID);
-                                    }
-
-                                    if (leafFound != true) {
-                                        //leaf not found
-
-                                        //diagnostic
-                                        //alert("leaf not found to match data coming in");
-
-                                        //add leaf
-                                        //todo fill in more properties here
-                                        leafTemp5 = new leaf(0, 0, 1, uiCityData.text, expanderID);
-                                        leafTemp5.cityDatas = null;
-
-                                        //diagnostic
-                                        //alert("adding leaf to collection: " + leafTemp5.displayText);
-
-                                        //add to leaf collection
-                                        cityDataLeafs[cityDataLeafs.length] = leafTemp5;
-                                    }
-                                    //leafTemp5 is leaf we're working on
-
-                                    if (leafFound == true) {
-                                        //alert("confirm data in3: " + leafTemp5.cityDatas[0].cityID);
-                                    }
-
-                                    //any city data for leaf exist
-                                    if (leafTemp5.cityDatas == null) {
-                                        //no city datas loaded
-
-                                        //diagnostic
-                                        //alert("no city data for leaf exist");
-
-                                        //create empty collection
-                                        var cityDatasTemp5 = new Array();
-
-                                        //assign to leaf
-                                        leafTemp5.cityDatas = cityDatasTemp5;
-                                    }
-                                    else {
-                                        //alert("have city datas");
-                                        cityDatasTemp5 = leafTemp5.cityDatas;
-                                    }
-
-                                    if (leafTemp5.cityDatas.length > 0) {
-                                        //alert("confirm data in4: " + leafTemp5.cityDatas[0].cityID);
-                                        //alert("confirm data in5: " + cityDatasTemp5[0].cityID);
-                                    }
-
-                                    //see if city data already exists for this city
-                                    var cityDataFound = false;
-                                    var cityDataTemp5 = null;
-                                    for (i = 0; i < cityDatasTemp5.length; i++) {
-                                        cityDataTemp5 = cityDatasTemp5[i];
-                                        if (cityDataTemp5.cityID == cityTemp5.id) {
-                                            cityDataFound = true;
-                                            break;
-                                        }
-                                    }
-                                    if (cityDataFound != true) {
-
-                                        //diagnostic
-                                        //alert("city data not found for leaf");
-
-                                        //add city data to leaf 
-                                        cityDataTemp5 = new cityData(0, cityTemp5.id, uiCityData.value, 0);
-
-                                        //diagnostic
-                                        //alert("add city data to leaf: " + cityDataTemp5.data);
-
-                                        cityDatasTemp5[cityDatasTemp5.length] = cityDataTemp5;
-                                    }
-
-                                    //if nothing in collection, null it out
-                                    if (leafTemp5.cityDatas.length == 0) {
-
-                                        //diagnostic
-                                        //alert("nulling out citydatas collection");
-                                        leafTemp5.cityDatas = null;
-                                    }
-                                });
-                            });
-                        } //foundLeafCityData != true
-                    } //cityTemp5.selected == 1
-                } //cities loop
-
-            //leaf notes
-            //expand leaf class - see if leafs exist, if do use them, if not exist load for cities selected, in 
-            //city index sort 1,2,3 index 5,2,15 (city indexes remain unchanged during page usage)
-            //if leaf exists, see if citydata exist, if so skip
-            //if leaf exists, citydata doesn't exist, load from db
-            //loop through leafs, compare by index to db leafs and match titles, if match, load citydata for leaf
-            //mark incoming leaf data matched
-            //if no match, leave city data empty
-            //loop through incoming leaf data search for no match, if found, add to end of child leafs, add data
-
+    function modelFromJSONCallback(expanderID) {
+        if (cityLoop < cities.length) {
+            var currentCityLoop = cityLoop;
+            var cityTemp5 = cities[cityLoop];
+            var answer = expanderCityHasData(expanderID);
+            cityLoop++;
+            if (!answer) {
+                //recursive
+                updateModelFromJSON(expanderID, cityTemp5.id, currentCityLoop, modelFromJSONCallback);
             }
-            else
-            {
-                alert("Expander not found");
+            else {
+                //recursive
+                modelFromJSONCallback(expanderID);
+           }
+        }
+        else {
+           //all json is done
+            uiUpdateCityHeader();
+            uiUpdateLeafsDisplay(expanderID);
+            if (clickingExpander) {
+                uiUpdateVisibilityAndButton(expanderID);
+                clickingExpander = false;
             }
         }
     }
+
+    function uiUpdateVisibilityAndButton(expanderID) {
+        var selectedButton = null;
+        $('.UISubTypeButton').each(function (index) {
+            var uiSubTypeButton = $(this);
+            var id = uiSubTypeButton.attr("id");
+            var buttonNum = id.toString().substring(15);
+            if (buttonNum == expanderID)
+            {
+                selectedButton = $(this);
+            }
+        });
+        if (selectedButton != null) {
+            if (selectedButton.html() == 'Expand') {
+                var expID = '#UISubTypeExpander' + expanderID;
+                var cityExpander = $(expID);
+                $('.UIDetail' + expanderID.toString()).attr("style", "display:show");
+                selectedButton.html('Contract');
+            }
+            else {
+                $('.UIDetail' + expanderID.toString()).attr("style", "display:none");
+                selectedButton.html('Expand');
+            }
+        }
+        else {
+            alert("Expander button not found");
+        }
+    }
+
+    function expanderCityHasData(expanderID) {
+    
+        var foundExp = false;
+        var expanderTemp5 = null;
+        for (i = 0; i < expanders.length; i++) {
+            expanderTemp5 = expanders[i];
+            if (expanderTemp5.uniqueID == expanderID) {
+                foundExp = true;
+                break;
+            }
+        }
+
+        var cityDataLeafs = null;
+
+        if (foundExp == true) {
+            if (expanderTemp5.cityDataLeafs == null) {
+                //no leafs loaded
+
+                //create empty collection
+                cityDataLeafs = new Array();
+
+                //assign collection to expander
+                expanderTemp5.cityDataLeafs = cityDataLeafs;
+
+            }
+            else {
+                cityDataLeafs = expanderTemp5.cityDataLeafs;
+            }
+        }
+        else {
+            alert("Expander not found");
+        }
+
+        var cityTemp5 = null;
+        var i = cityLoop;
+        cityTemp5 = cities[i];
+        if (cityTemp5.selected == 1) {
+            var foundLeafCityData = false;
+            //todo precheck - see if first leaf has the city data in it, if so skip loading of leafs for that city
+            if (cityDataLeafs.length > 0) {
+
+                //get first leaf only
+                leafTemp5 = cityDataLeafs[0];
+
+                //search for city data
+                if (leafTemp5.cityDatas != null) {
+                    //have some data
+                    for (i2 = 0; i2 < leafTemp5.cityDatas.length; i2++) {
+                        cityDataTemp5 = leafTemp5.cityDatas[i2];
+                        if (cityDataTemp5.cityID == cityTemp5.id) {
+                            foundLeafCityData = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return foundLeafCityData;
+    }
+
 </script>
 <script type="text/javascript">
-    function updateLeafsDisplay(expanderID) {
+    function uiUpdateLeafsDisplay(expanderID) {
         if (expanderID != null && expanderID != '') {
             // locate expander
             var foundExp7 = false;
@@ -310,34 +353,102 @@
             }
 
             if (foundExp == true) {
-                alert("updatedisplay - foundexpander for display");
                 var expID = '#UISubTypeExpander' + expanderID;
                 var cityExpander = $(expID);
                 cityExpander.html('');
 
                 //locate leaves and append
-                if (expanderTemp7.cityDataLeafs == null) {
-                    alert("no leafs");
-                }
+                if (expanderTemp7.cityDataLeafs != null) {
+                    for (i2 = 0; i2 < expanderTemp7.cityDataLeafs.length; i2++) {
+                        var leafTemp7 = expanderTemp7.cityDataLeafs[i2];
+                        var output = '<div id="UIDetail' + expanderID.toString() + '" class="UIDetail' + expanderID.toString() + '">' + leafTemp7.displayText + '&nbsp;&nbsp;&nbsp;&nbsp;';
+                        //locate city data and append,in order where selected
 
-                for (i2 = 0; i2 < expanderTemp7.cityDataLeafs.length; i2++) {
-                    var leafTemp7 = expanderTemp7.cityDataLeafs[i2];
-                    var output = '<div id="UIDetail' + expanderID.toString() + '" class="UIDetail' + expanderID.toString() + '">' + leafTemp7.displayText + '&nbsp;&nbsp;&nbsp;&nbsp;';
-                    //locate city data and append
-                    for (i3 = 0; i3 < leafTemp7.cityDatas.length; i3++) {
-                        var cityData7 = leafTemp7.cityDatas[i3];
-                        var value = cityData7.data;
-                        output = output + value + '&nbsp;&nbsp;&nbsp;'
+                        for (s = 1; s < 4; s++) {
+                            var cityTemp8 = null;
+                            for (i = 0; i < cities.length; i++) {
+                                cityTemp8 = cities[i];
+                                if (cityTemp8.selected == 1) {
+                                    if (cityTemp8.displayOrder == s) {
+                                        for (i3 = 0; i3 < leafTemp7.cityDatas.length; i3++) {
+                                            var cityData7 = leafTemp7.cityDatas[i3];
+                                            if (cityData7.cityID == cityTemp8.id) {
+                                                //found
+                                               var value = cityData7.data;
+                                               output = output + value + '&nbsp;&nbsp;&nbsp;'
+                                               break;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        output = output + '<br />' + '</div>'
+                        cityExpander.append(output);
                     }
-                    output = output + '<br />' + '</div>'
-                    cityExpander.append(output);
                 }
             }
             else {
-                alert("expander not found");
+                alert("Expander not found");
             }
         }
     }
+</script>
+
+<script type="text/javascript">
+    $(function () {
+        $('.UICityDelButton').live('click',function () {
+            var uiCityDelButton = $(this);
+            var id = uiCityDelButton.attr("id");
+            var num = id.toString().substring(15);
+            if (num != null && num != '') {
+                //locate city in collection
+                var oldOrder = 99;
+                for (i = 0; i < cities.length; i++) {
+                    var cityTemp2 = cities[i];
+                    if (cityTemp2.id == num) {
+                        //deselect city
+                        cityTemp2.selected = 0;
+                        oldOrder = cityTemp2.displayOrder;
+                        cityTemp2.displayOrder = 0;
+                        break;
+                    }
+                }
+
+
+                //reorder the cities
+                for (s = 1; s < 4; s++) {
+                    var cityTemp8 = null;
+                    for (i = 0; i < cities.length; i++) {
+                        cityTemp8 = cities[i];
+                        if (cityTemp8.selected == 1) {
+                            if (cityTemp8.displayOrder == s) {
+                                if (cityTemp8.displayOrder > oldOrder) {
+                                    cityTemp8.displayOrder = cityTemp8.displayOrder - 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                uiUpdateCityHeader();
+
+                cityLoop = 0;
+
+                $('.UISubTypeButton').each(function (index) {
+                    var uiSubTypeButton = $(this);
+                    if (uiSubTypeButton.html() == "Contract") {
+                        var id = uiSubTypeButton.attr("id");
+                        var num = id.toString().substring(15);
+                        if (num != null && num != '') {
+                            modelFromJSONCallback(num);
+                        }
+                    }
+                });
+            }
+        });
+    });
 </script>
 
 <script type="text/javascript">
@@ -348,31 +459,9 @@
             var num = id.toString().substring(15);
             var cityID = @Model.City.CityID;
             if (num != null && num != '') {
-
-                //alert("before update");
-                updateData(num);
-                //alert("after update");
-
-                //revised html display
-                if ($(this).html() == 'Expand')
-                {
-                    var expID = '#UISubTypeExpander' + num;
-                    var cityExpander = $(expID);
-                    if (cityExpander.html() == '')
-                    {
-                        updateLeafsDisplay(num);
-                    }
-                    else
-                    {
-                        $('.UIDetail' + num.toString()).attr("style", "display:show");
-                    }
-                    $(this).html('Contract');
-                }
-                else
-                {
-                    $('.UIDetail' + num.toString()).attr("style", "display:none");
-                    $(this).html('Expand');
-                }
+                cityLoop = 0;
+                clickingExpander = true;
+                modelFromJSONCallback(num);
             }
         });
     });
@@ -381,7 +470,6 @@
 <script type="text/javascript">
     $(function () {
         $('.UISourceCityButton').live('click', function () {
-            //TODO: get working
             var uiSourceCityButton = $(this);
             var id = uiSourceCityButton.attr("id");
             var num = id.toString().substring(18);
@@ -402,11 +490,6 @@
                     }
                 }
 
-                //diagonostic
-                //alert("City Count: " + cityCount);
-                //alert("Selected count: " + selectedCount);
-                //alert("Max DisplayOrder: " + maxDisplayOrder);
-
                 //max 2 extra cities allowed + base city, if already have max, show message only
                 if (selectedCount >= 3) {
                     alert("Maximum comparison cities already selected, please remove a city to select another");
@@ -425,25 +508,20 @@
                     }
                     if (found == true) {
 
-                        ///diagnostic
-                        //alert("City in collection");
                         //select it
                         cityTemp3.selected = 1;
 
                         //set display order
                         cityTemp3.displayOrder = maxDisplayOrder + 1;
 
-
                     }
                     else {
-
-                        //diagnostic
-                        //alert("City not in collection");
-
                         //create comparison city
 
-                        //todo get the name and population easily from ?
-                        var cityTemp4 = new city(num, "comparison city name", 0);
+                        var uniqueName = $("#UISourceCityUniqueName" + num).val();
+                        var pop = $("#UISourceCityPopulation" + num).val();
+                        var stateID = $("#UISourceCityStateID" + num).val();
+                        var cityTemp4 = new city(num, uniqueName, pop, stateID);
 
                         //select it
                         cityTemp4.selected = 1;
@@ -456,18 +534,7 @@
                     }
                 }
 
-                //diagnostic
-                //for (i = 0; i < cities.length; i++) {
-                //    var cityTemp5 = cities[i];
-                //    alert(cityTemp5.id + " " + cityTemp5.name + " " + cityTemp5.population + " " + cityTemp5.selected + " " + cityTemp5.displayOrder);
-                //}
-
-                //update center screen data
-                //locate expanded item if any
-                //locate button with contract on it, get expander id for it
-                //use expander id in function call
-                //update object model
-                //update display
+                uiUpdateCityHeader();
 
                 $('.UISubTypeButton').each(function (index) {
                     var uiSubTypeButton = $(this);
@@ -475,28 +542,10 @@
                         var id = uiSubTypeButton.attr("id");
                         var num = id.toString().substring(15);
                         if (num != null && num != '') {
-                            //alert("redo: " + num);
-                            updateData(num);
-                            updateCityHeader();
-                            updateLeafsDisplay(num);
+                            modelFromJSONCallback(num);
                         }
                     }
                 });
-
-
-                //other notes
-                //remove from list, unselect and remove order, adjust other orders
-                //loop display order 1,2,3, locate city for each order, if found use
-
-                //leaf notes
-                //expand leaf class - see if leafs exist, if do use them, if not exist load for cities selected, in 
-                //city index sort 1,2,3 index 5,2,15 (city indexes remain unchanged during page usage)
-                //if leaf exists, see if citydata exist, if so skip
-                //if leaf exists, citydata doesn't exist, load from db
-                //loop through leafs, compare by index to db leafs and match titles, if match, load citydata for leaf
-                //mark incoming leaf data matched
-                //if no match, leave city data empty
-                //loop through incoming leaf data search for no match, if found, add to end of child leafs, add data
             }
         });
     });
@@ -517,34 +566,23 @@
                         expander1.cityDataLeafs = null;
                         expanders[expanders.length] = expander1;
                     });
+
+                    //move here so executes after json completes
+                    var cityData = $('#CityData');
+
+                    cityData.html('<div id="CityDataCol1"></div>');
+                    cityData.append('<div id="CityDataUnder"></div>');
+
+                    uiUpdateCityHeader();
+
+                    var cityDataUnder = $('#CityDataUnder');
+
+                    //for each expander make a row
+                    for (i = 0; i < expanders.length; i++) {
+                        var expander2 = expanders[i];
+                        cityDataUnder.append('<div id="UISubType' + expander2.uniqueID + '">' + expander2.displayText + '&nbsp;&nbsp;&nbsp;&nbsp;' + '<button id="UISubTypeButton' + expander2.uniqueID + '" class="UISubTypeButton">Expand</button>' + '<br />' + '</div>' + '<div id="UISubTypeExpander' + expander2.uniqueID + '">' + '</div>');
+                    }
                 });
-
-                //diagnostic
-                //for (i = 0; i < expanders.length; i++) {
-                //    var expander2 = expanders[i];
-                //    alert(expander2.uniqueID + " " + expander2.sortOrder + " " + expander2.active + " " + expander2.displayText + " " + expander2.dataLevel + " " + expander2.parentUniqueID + " " + expander2.isLeaf + " " + expander2.source);
-                //}
-
-                //alert("expanders count: " + expanders.length);
-                //alert(expander1.cityDataLeafs);
-
-                //diagnostic
-                //alert("stop here");
-
-                var cityData = $('#CityData');
-
-                cityData.html('<div id="CityDataCol1"></div>');
-                cityData.append('<div id="CityDataUnder"></div>');
-
-                updateCityHeader();
-
-                var cityDataUnder = $('#CityDataUnder');
-                alert("test");
-                //for each expander make a row
-                for (i = 0; i < expanders.length; i++) {
-                    var expander2 = expanders[i];
-                    cityDataUnder.append('<div id="UISubType' + expander2.uniqueID + '">' + expander2.displayText + '&nbsp;&nbsp;&nbsp;&nbsp;' + '<button id="UISubTypeButton' + expander2.uniqueID + '" class="UISubTypeButton">Expand</button>' + '<br />' + '</div>' + '<div id="UISubTypeExpander' + expander2.uniqueID + '">' + '</div>');
-                }
             }
         });
     });
@@ -560,7 +598,7 @@
                         var sourceCityID = '#UISourceCity' + city.value.toString();
                         var existCity = $(sourceCityID);
                         if (existCity.html() == null) {
-                            citiesSelect.append('<div id="UISourceCity' + city.value + '">' + '<button id="UISourceCityButton' + city.value + '" class="UISourceCityButton">Add</button>' + city.text + '&nbsp;&nbsp;&nbsp;&nbsp;<br />' + '</div>');
+                            citiesSelect.append('<div id="UISourceCity' + city.value + '">' + '<button id="UISourceCityButton' + city.value + '" class="UISourceCityButton">Add</button>' + city.text + '<input type="hidden" id="UISourceCityUniqueName' + city.value + '" value="' + city.name + '" />' + '<input type="hidden" id="UISourceCityPopulation' + city.value + '" value="' + city.population + '" />' + '<input type="hidden" id="UISourceCityStateID' + city.value + '" value="' + city.stateID + '" />' + '&nbsp;&nbsp;&nbsp;&nbsp;<br />' + '</div>');
                         }
                     });
                 });
@@ -585,7 +623,7 @@
                         var sourceCityID = '#UISourceCity' + city.value.toString();
                         var existCity = $(sourceCityID);
                         if (existCity.html() == null) {
-                            citiesSelect.append('<div id="UISourceCity' + city.value + '">' + '<button id="UISourceCityButton' + city.value + '" class="UISourceCityButton">Add</button>' + city.text + '&nbsp;&nbsp;&nbsp;&nbsp;<br />' + '</div>');
+                            citiesSelect.append('<div id="UISourceCity' + city.value + '">' + '<button id="UISourceCityButton' + city.value + '" class="UISourceCityButton">Add</button>' + city.text + '<input type="hidden" id="UISourceCityUniqueName' + city.value + '" value="' + city.name + '" />' + '<input type="hidden" id="UISourceCityPopulation' + city.value + '" value="' + city.population + '" />' + '<input type="hidden" id="UISourceCityStateID' + city.value + '" value="' + city.stateID + '" />' + '&nbsp;&nbsp;&nbsp;&nbsp;<br />' + '</div>');
                         }
                     });
                 });

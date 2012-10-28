@@ -21,7 +21,12 @@ namespace Public360.Controllers
             cityDetail.UICityDataTypes = publicDB.UICityDataTypes.Where(cdt => cdt.CityDataTypeID > 0 && cdt.DataLevel == 1 && cdt.Active == true).OrderBy(cdt => cdt.SortOrder).ToList();
             cityDetail.UICityDataTypeSize = cityDetail.UICityDataTypes.Count() + 2;
             cityDetail.ComparisonCities = publicDB.Cities.Where(c => c.CityID != id && c.StateID == cityDetail.City.StateID).ToList();
-            cityDetail.CityPopulation = publicDB.CensusCityPops.Where(p => p.CityID == id && p.Year == 10).Select(p => p.Population).Single(); 
+
+            //get year for this data
+            var dataSetYear = publicDB.DataSetCurrentYears.Where(x => x.StateID == cityDetail.City.StateID && x.EntityType == (byte)EntityType.City && x.DataSet == (byte)DataSet.USCensus && x.DataSetSubtype == (byte)DataSetSubtype.Primary).Single();
+            byte year = dataSetYear.Year; 
+
+            cityDetail.CityPopulation = publicDB.CensusCityPops.Where(p => p.CityID == id && p.Year == year).Select(p => p.Population).Single(); 
             return View(cityDetail);
         }
 
@@ -30,21 +35,38 @@ namespace Public360.Controllers
         // AJAX: /City/SingleCityPopJSON?city=3900142
         public ActionResult SingleCityPopJSON(int cityID)
         {
-            City singleCity = publicDB.Cities.Where(c => c.CityID == cityID).Single();
 
+
+            City singleCity = publicDB.Cities.Where(c => c.CityID == cityID).Single();
             int cityValue = singleCity.CityID;
 
-            int? cityPop = publicDB.CensusCityPops.Where(p => p.CityID == cityID && p.Year == 10).Select(p => p.Population).Single();
+            //get year for this data
+            var dataSetYear = publicDB.DataSetCurrentYears.Where(x => x.StateID == singleCity.StateID && x.EntityType == (byte)EntityType.City && x.DataSet == (byte)DataSet.USCensus && x.DataSetSubtype == (byte)DataSetSubtype.Primary).Single();
+            byte year = dataSetYear.Year; 
 
-            string showText = singleCity.CityUniqueName + " (pop " + cityPop + ")";
+            int? cityPop = publicDB.CensusCityPops.Where(p => p.CityID == cityID && p.Year == year).Select(p => p.Population).SingleOrDefault();
+            string showPop = "";
+            if (cityPop == null)
+            {
+                showPop = "none";
+            }
+            else
+            {
+                showPop = cityPop.ToString();
+            }
+
+            string showText = singleCity.CityUniqueName + " (pop " + showPop + ")";
 
             CityNameList cityItem = new CityNameList();
             cityItem.CityID = cityValue;
             cityItem.CityText = showText;
+            cityItem.CityPopulation = cityPop;
+            cityItem.CityUniqueName = singleCity.CityUniqueName;
+            cityItem.CityStateID = singleCity.StateID;
             List<CityNameList> cities = new List<CityNameList>();
             cities.Add(cityItem);
 
-            return Json(cities.Select(x => new { value = x.CityID, text = x.CityText }), JsonRequestBehavior.AllowGet);
+            return Json(cities.Select(x => new { value = x.CityID, text = x.CityText, name = x.CityUniqueName, population = x.CityPopulation, stateID = x.CityStateID }), JsonRequestBehavior.AllowGet);
         }
 
         // 
@@ -53,26 +75,42 @@ namespace Public360.Controllers
         public ActionResult CitiesWithinPercentJSON(int excludeCityID, int stateID, int homePop, double percent)
         {
 
+            //get year for this data
+            var dataSetYear = publicDB.DataSetCurrentYears.Where(x => x.StateID == stateID && x.EntityType == (byte)EntityType.City && x.DataSet == (byte)DataSet.USCensus && x.DataSetSubtype == (byte)DataSetSubtype.Primary).Single();
+            byte year = dataSetYear.Year; 
+
+
             var cities1 =  from c in publicDB.Cities join p in publicDB.CensusCityPops on c.CityID equals p.CityID into cp
                            from p in cp
-                           where p.Year == 10 &&
+                           where p.Year == year &&
                            p.Population >= homePop * (1 - percent/100) &&
                            p.Population <= homePop * (1 + percent/100) &&
                            c.StateID == stateID &&
                            c.CityID != excludeCityID
-                           select new {p.CityID, c.CityUniqueName, p.Population};
-                           
+                           select new {p.CityID, c.CityUniqueName, p.Population, c.StateID};
+           
             List<CityNameList> cities = new List<CityNameList>();
             foreach (var x in cities1)
             {
                 CityNameList cityItem = new CityNameList();
                 cityItem.CityID = x.CityID;
-                string showText = x.CityUniqueName + " (pop " + x.Population + ")";
+                string showPop = "";
+                if (x.Population == null)
+                {
+                    showPop = "none";
+                }
+                else
+                {
+                    showPop = x.Population.ToString();
+                }
+                string showText = x.CityUniqueName + " (pop " + showPop + ")";
                 cityItem.CityText = showText;
+                cityItem.CityPopulation = x.Population;
+                cityItem.CityUniqueName = x.CityUniqueName;
+                cityItem.CityStateID = x.StateID;
                 cities.Add(cityItem);
             }
-
-            return Json(cities.Select(x => new { value = x.CityID, text = x.CityText }), JsonRequestBehavior.AllowGet);
+            return Json(cities.Select(x => new { value = x.CityID, text = x.CityText, name = x.CityUniqueName, population = x.CityPopulation, stateID = x.CityStateID }), JsonRequestBehavior.AllowGet);
         }
 
         // 
@@ -100,13 +138,17 @@ namespace Public360.Controllers
         // 
         // get
         // AJAX: /City/UICityDataJSON?uiCityDataTypeID=1
-        public ActionResult UICityDataJSON(int uiCityDataTypeID, int cityID)
+        public ActionResult UICityDataJSON(int uiCityDataTypeID, int cityID, int stateID)
         {
             switch (uiCityDataTypeID)
             {
                 case 8: //population
 
-                    CensusCityPop cityPop = publicDB.CensusCityPops.Where(p => p.CityID == cityID && p.Year == 10).Single();
+                    //get year for this data
+                    var dataSetYear = publicDB.DataSetCurrentYears.Where(x => x.StateID == stateID && x.EntityType == (byte)EntityType.City && x.DataSet == (byte)DataSet.USCensus && x.DataSetSubtype == (byte)DataSetSubtype.Primary).Single();
+                    byte year = dataSetYear.Year; 
+
+                    CensusCityPop cityPop = publicDB.CensusCityPops.Where(p => p.CityID == cityID && p.Year == year).Single();
 
                     CityData cityData = new CityData();
                     cityData.Text = "Total Population";
@@ -148,9 +190,11 @@ namespace Public360.Controllers
 
             }
 
-            List<UICityDataType> uiCityDataTypes = publicDB.UICityDataTypes.Where(u => u.ParentCityDataTypeID == uiCityDataTypeID && u.Active == true).OrderBy(u => u.SortOrder).ToList();
+            //List<UICityDataType> uiCityDataTypes = publicDB.UICityDataTypes.Where(u => u.ParentCityDataTypeID == uiCityDataTypeID && u.Active == true).OrderBy(u => u.SortOrder).ToList();
 
-            return Json(uiCityDataTypes.Select(x => new { value = x.CityDataTypeID, text = x.DisplayText }), JsonRequestBehavior.AllowGet);
+            //return Json(uiCityDataTypes.Select(x => new { value = x.CityDataTypeID, text = x.DisplayText }), JsonRequestBehavior.AllowGet);
+            return null;
+
         }
 
         private List<CityData> AgeByGender(List<CensusCityAge> cityAges)
